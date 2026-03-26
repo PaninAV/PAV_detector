@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import io
 import logging
+import pickle
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 import joblib
 import numpy as np
+from pav_detector.core.scaler import StandardScalerLite
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +44,7 @@ class InferenceEngine:
 
     def _load_assets(self) -> None:
         if self.scaler_path.exists():
-            self._scaler = joblib.load(self.scaler_path)
+            self._scaler = _load_scaler_with_legacy_support(self.scaler_path)
             logger.info("Loaded scaler from %s", self.scaler_path)
         else:
             logger.warning("Scaler not found at %s; raw features will be used.", self.scaler_path)
@@ -107,3 +111,28 @@ class InferenceEngine:
             value = float(probabilities[idx]) if idx < len(probabilities) else 0.0
             result[cls_name] = value
         return result
+
+
+class _LegacyScalerUnpickler(pickle.Unpickler):
+    def find_class(self, module: str, name: str):
+        # Backward compatibility for scalers trained when StandardScalerLite
+        # lived in __main__ (e.g., `python -m ...train_model` on Windows).
+        if module == "__main__" and name == "StandardScalerLite":
+            return StandardScalerLite
+        return super().find_class(module, name)
+
+
+def _load_scaler_with_legacy_support(path: Path):
+    try:
+        return joblib.load(path)
+    except AttributeError as exc:
+        message = str(exc)
+        if "StandardScalerLite" not in message:
+            raise
+        logger.warning(
+            "Default scaler loading failed, trying legacy compatibility mode for %s", path
+        )
+        with open(path, "rb") as file:
+            data = file.read()
+        unpickler = _LegacyScalerUnpickler(io.BytesIO(data))
+        return unpickler.load()
