@@ -67,6 +67,24 @@ src/pav_detector/
 
 ## Быстрый старт
 
+### One-command setup (после `git clone`)
+
+```bash
+cd PAV_detector
+bash scripts/setup.sh
+```
+
+Скрипт автоматически:
+- создаёт `.env` из `.env.example` (если ещё нет),
+- создаёт папки `models/` и `data/`,
+- ставит зависимости (через `.venv`, а если `venv` недоступен — через `python3 -m pip --user`),
+- создаёт БД PostgreSQL (если не существует),
+- создаёт таблицы/индексы.
+
+Опции:
+- `USE_VENV=1 bash scripts/setup.sh` — строго использовать виртуальное окружение.
+- `USE_VENV=0 bash scripts/setup.sh` — ставить в user-окружение без `.venv`.
+
 ### 1) Установка
 
 ```bash
