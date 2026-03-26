@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import io
 import logging
-import pickle
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -113,15 +111,6 @@ class InferenceEngine:
         return result
 
 
-class _LegacyScalerUnpickler(pickle.Unpickler):
-    def find_class(self, module: str, name: str):
-        # Backward compatibility for scalers trained when StandardScalerLite
-        # lived in __main__ (e.g., `python -m ...train_model` on Windows).
-        if module == "__main__" and name == "StandardScalerLite":
-            return StandardScalerLite
-        return super().find_class(module, name)
-
-
 def _load_scaler_with_legacy_support(path: Path):
     try:
         return joblib.load(path)
@@ -132,7 +121,18 @@ def _load_scaler_with_legacy_support(path: Path):
         logger.warning(
             "Default scaler loading failed, trying legacy compatibility mode for %s", path
         )
-        with open(path, "rb") as file:
-            data = file.read()
-        unpickler = _LegacyScalerUnpickler(io.BytesIO(data))
-        return unpickler.load()
+        main_module = sys.modules.get("__main__")
+        if main_module is None:
+            raise
+
+        had_attr = hasattr(main_module, "StandardScalerLite")
+        previous_value = getattr(main_module, "StandardScalerLite", None)
+        try:
+            # Legacy fix: old scaler pickles may reference __main__.StandardScalerLite.
+            setattr(main_module, "StandardScalerLite", StandardScalerLite)
+            return joblib.load(path)
+        finally:
+            if had_attr:
+                setattr(main_module, "StandardScalerLite", previous_value)
+            else:
+                delattr(main_module, "StandardScalerLite")
