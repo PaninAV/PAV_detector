@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.env
+.DS_Store
+.streamlit/secrets.toml
+data/
+models/
+!src/pav_detector/data/.gitkeep
+!src/pav_detector/models/.gitkeep

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pav-detector"
+version = "0.1.0"
+description = "VPN/Proxy detection framework using flow-level ML."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "pandas",
+  "numpy",
+  "python-dotenv",
+  "joblib",
+  "psycopg2-binary",
+  "streamlit",
+  "onnxruntime",
+  "torch",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+pav-init-db = "pav_detector.db.init_db:main"
+pav-offline = "pav_detector.offline.run_offline:main"

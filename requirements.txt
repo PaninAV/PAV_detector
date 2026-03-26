@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pandas
+numpy
+python-dotenv
+joblib
+psycopg2-binary
+streamlit
+onnxruntime
+torch
