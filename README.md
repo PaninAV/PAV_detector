@@ -85,36 +85,6 @@ bash scripts/setup.sh
 - `USE_VENV=1 bash scripts/setup.sh` — строго использовать виртуальное окружение.
 - `USE_VENV=0 bash scripts/setup.sh` — ставить в user-окружение без `.venv`.
 
-## Обучение модели (train)
-
-В проект добавлен train-модуль: `pav_detector.train.train_model`.
-
-Быстрый пример:
-
-```bash
-PYTHONPATH=src python3 -m pav_detector.train.train_model \
-  --train-csv path/to/labeled_flows.csv \
-  --label-column Label \
-  --classes LEGIT,VPN,PROXY \
-  --epochs 30 \
-  --batch-size 256 \
-  --export-onnx \
-  --out-dir models
-```
-
-После обучения сохраняются:
-- `models/scaler.pkl`
-- `models/model.pt` (TorchScript)
-- `models/model_state_dict.pt`
-- `models/model.onnx` (если задан `--export-onnx`)
-- `models/feature_order.json`
-- `models/train_metrics.json`
-
-Важно:
-- значения в колонке label должны совпадать с `--classes`;
-- если нужен фиксированный порядок признаков, передайте `--feature-columns col1,col2,...`;
-- порядок классов затем должен совпадать с `.env` (`CLASSES=...`) для корректного инференса.
-
 ### 1) Установка
 
 ```bash
@@ -189,12 +159,18 @@ curl -X POST http://localhost:8000/v1/classify \
 
 Поддерживается обучение на одном или нескольких размеченных CSV (CICFlowMeter).
 
+Формат, который поддерживается "из коробки":
+- предпоследний столбец: класс (`class_label`: `LEGIT`/`VPN`/`PROXY`);
+- последний столбец: subtype (`subtype`: например `wireguard`, `amnezia`, `none`).
+
+Если `--label-column` не указан, train автоматически возьмёт `class_label`
+(или предпоследний столбец). `subtype` автоматически исключается из признаков.
+
 Минимальный пример (один CSV):
 
 ```bash
 PYTHONPATH=src python3 -m pav_detector.train.train_model \
   --train-csv path/to/train.csv \
-  --label-column Label \
   --classes LEGIT,VPN,PROXY \
   --epochs 30 \
   --export-onnx
@@ -205,7 +181,6 @@ PYTHONPATH=src python3 -m pav_detector.train.train_model \
 ```bash
 PYTHONPATH=src python3 -m pav_detector.train.train_model \
   --train-csv data/train_part1.csv data/train_part2.csv data/train_part3.csv \
-  --label-column Label \
   --classes LEGIT,VPN,PROXY \
   --epochs 40 \
   --batch-size 512 \
@@ -228,6 +203,17 @@ CLI-команда после `pip install -e .`:
 
 ```bash
 pav-train --help
+```
+
+Пример для вашего формата данных:
+
+```bash
+PYTHONPATH=src python3 -m pav_detector.train.train_model \
+  --train-csv /path/to/dataset.csv \
+  --classes LEGIT,VPN,PROXY \
+  --epochs 40 \
+  --batch-size 512 \
+  --export-onnx
 ```
 
 ### 6) Offline режим
