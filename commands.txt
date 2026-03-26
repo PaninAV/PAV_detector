@@ -1,3 +1,9 @@
 cd "C:\Users\test\PAV_detector"
 $env:PYTHONPATH="src"
 .\.venv\Scripts\python.exe -m pav_detector.train.train_model --train-csv "C:\Users\test\dataset.csv" --classes LEGIT,VPN,PROXY --epochs 40 --batch-size 512 --export-onnx --out-dir models
+
+
+
+cd "C:\Users\test\PAV_detector"
+$env:PYTHONPATH="src"
+python -m pav_detector.train.train_model --train-csv "C:\Users\test\dataset.csv" --classes LEGIT,VPN,PROXY --epochs 40 --batch-size 512 --export-onnx --out-dir models
