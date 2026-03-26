@@ -76,8 +76,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--label-column",
         type=str,
-        default="Label",
-        help="Name of label column in CSV (default: Label)",
+        default="",
+        help=(
+            "Name of class label column. If empty, uses 'class_label' when present, "
+            "otherwise uses the penultimate CSV column."
+        ),
+    )
+    parser.add_argument(
+        "--subtype-column",
+        type=str,
+        default="",
+        help=(
+            "Optional subtype column name (e.g., amnezia/wireguard). "
+            "If empty and 'subtype' exists or the last column is non-numeric, it is excluded from features."
+        ),
     )
     parser.add_argument(
         "--feature-columns",
@@ -147,9 +159,45 @@ def _load_train_dataframe(csv_paths: Sequence[Path]) -> pd.DataFrame:
     return combined
 
 
+def _resolve_label_column(df: pd.DataFrame, explicit_label_column: str) -> str:
+    if explicit_label_column:
+        if explicit_label_column not in df.columns:
+            raise ValueError(f"Label column '{explicit_label_column}' not found in CSV")
+        return explicit_label_column
+
+    if "class_label" in df.columns:
+        return "class_label"
+
+    if len(df.columns) < 2:
+        raise ValueError("Dataset must have at least 2 columns to auto-detect class label column.")
+    return str(df.columns[-2])
+
+
+def _resolve_subtype_column(
+    df: pd.DataFrame,
+    label_column: str,
+    explicit_subtype_column: str,
+) -> str | None:
+    if explicit_subtype_column:
+        if explicit_subtype_column not in df.columns:
+            raise ValueError(f"Subtype column '{explicit_subtype_column}' not found in CSV")
+        if explicit_subtype_column == label_column:
+            raise ValueError("Subtype column must be different from label column.")
+        return explicit_subtype_column
+
+    if "subtype" in df.columns and "subtype" != label_column:
+        return "subtype"
+
+    last_col = str(df.columns[-1])
+    if last_col != label_column and not pd.api.types.is_numeric_dtype(df[last_col]):
+        return last_col
+    return None
+
+
 def _prepare_features(
     df: pd.DataFrame,
     label_column: str,
+    subtype_column: str | None,
     selected_features: Sequence[str] | None,
 ) -> tuple[np.ndarray, np.ndarray, List[str]]:
     if label_column not in df.columns:
@@ -165,6 +213,8 @@ def _prepare_features(
         numeric = df.select_dtypes(include=["number"]).copy()
         if label_column in numeric.columns:
             numeric = numeric.drop(columns=[label_column])
+        if subtype_column and subtype_column in numeric.columns:
+            numeric = numeric.drop(columns=[subtype_column])
         if numeric.shape[1] == 0:
             raise ValueError(
                 "No numeric feature columns found. Pass --feature-columns explicitly."
@@ -212,8 +262,18 @@ def train(args: argparse.Namespace) -> TrainingArtifacts:
         raise ValueError("At least one class must be provided in --classes")
 
     df = _load_train_dataframe(args.train_csv)
+    label_column = _resolve_label_column(df, args.label_column.strip())
+    subtype_column = _resolve_subtype_column(df, label_column, args.subtype_column.strip())
+    print(f"[train] Using label column: {label_column}")
+    if subtype_column:
+        print(f"[train] Detected subtype column (excluded from features): {subtype_column}")
     feature_cols = _parse_csv_list(args.feature_columns) if args.feature_columns else []
-    x_raw, y_raw_labels, feature_order = _prepare_features(df, args.label_column, feature_cols)
+    x_raw, y_raw_labels, feature_order = _prepare_features(
+        df,
+        label_column=label_column,
+        subtype_column=subtype_column,
+        selected_features=feature_cols,
+    )
     y = _encode_labels(pd.Series(y_raw_labels), classes)
 
     if len(x_raw) != len(y):
