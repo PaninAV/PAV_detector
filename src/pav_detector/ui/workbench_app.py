@@ -208,16 +208,8 @@ def _run_online_section() -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="PAV Detector Workbench", layout="wide")
-    st.title("PAV Detector - Workbench")
-    st.caption("Интерфейс запуска обучения, оффлайн/онлайн проверки и просмотра результатов из одного окна.")
-
-    with st.expander("Перед запуском"):
-        st.markdown(
-            "- Для оффлайн/онлайн режимов модель в `models/` должна существовать.\n"
-            "- Для онлайн режима сначала поднимите API: `uvicorn pav_detector.api.app:app --host 0.0.0.0 --port 8000`.\n"
-            "- Для записи алертов в БД убедитесь, что `ENABLE_DB=true` в `.env`."
-        )
+    st.set_page_config(page_title="Детектор скрытых туннелей и прокси соединений", layout="wide")
+    st.title("Детектор скрытых туннелей и прокси соединений")
 
     tab_train, tab_offline, tab_online, tab_results = st.tabs(
         ["Обучение модели", "Оффлайн проверка", "Онлайн проверка", "Просмотр результатов"]
