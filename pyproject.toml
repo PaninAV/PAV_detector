@@ -17,6 +17,8 @@ dependencies = [
   "joblib",
   "psycopg2-binary",
   "streamlit",
+  "onnx",
+  "onnxscript",
   "onnxruntime",
   "torch",
 ]

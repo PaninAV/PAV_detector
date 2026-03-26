@@ -339,16 +339,25 @@ def _save_artifacts(args: argparse.Namespace, artifacts: TrainingArtifacts) -> N
     if args.export_onnx:
         model_onnx_path = args.out_dir / "model.onnx"
         sample = torch.randn(1, len(artifacts.feature_order), dtype=torch.float32)
-        torch.onnx.export(
-            artifacts.model,
-            sample,
-            str(model_onnx_path),
-            input_names=["input"],
-            output_names=["logits"],
-            dynamic_axes={"input": {0: "batch"}, "logits": {0: "batch"}},
-            opset_version=17,
-        )
-        print(f"[train] Saved ONNX model: {model_onnx_path}")
+        try:
+            torch.onnx.export(
+                artifacts.model,
+                sample,
+                str(model_onnx_path),
+                input_names=["input"],
+                output_names=["logits"],
+                dynamic_axes={"input": {0: "batch"}, "logits": {0: "batch"}},
+                opset_version=17,
+            )
+            print(f"[train] Saved ONNX model: {model_onnx_path}")
+        except ModuleNotFoundError as exc:
+            missing = str(exc).split("'")
+            missing_pkg = missing[1] if len(missing) >= 2 else "unknown"
+            raise RuntimeError(
+                "ONNX export failed because an extra dependency is missing: "
+                f"{missing_pkg}. Install it with `pip install onnx onnxscript` "
+                "or rerun training without --export-onnx."
+            ) from exc
 
     args.save_feature_order_json.parent.mkdir(parents=True, exist_ok=True)
     args.save_feature_order_json.write_text(
