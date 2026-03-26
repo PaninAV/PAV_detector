@@ -30,3 +30,4 @@ where = ["src"]
 [project.scripts]
 pav-init-db = "pav_detector.db.init_db:main"
 pav-offline = "pav_detector.offline.run_offline:main"
+pav-train = "pav_detector.train.train_model:main"

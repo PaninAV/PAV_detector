@@ -85,6 +85,36 @@ bash scripts/setup.sh
 - `USE_VENV=1 bash scripts/setup.sh` — строго использовать виртуальное окружение.
 - `USE_VENV=0 bash scripts/setup.sh` — ставить в user-окружение без `.venv`.
 
+## Обучение модели (train)
+
+В проект добавлен train-модуль: `pav_detector.train.train_model`.
+
+Быстрый пример:
+
+```bash
+PYTHONPATH=src python3 -m pav_detector.train.train_model \
+  --train-csv path/to/labeled_flows.csv \
+  --label-column Label \
+  --classes LEGIT,VPN,PROXY \
+  --epochs 30 \
+  --batch-size 256 \
+  --export-onnx \
+  --out-dir models
+```
+
+После обучения сохраняются:
+- `models/scaler.pkl`
+- `models/model.pt` (TorchScript)
+- `models/model_state_dict.pt`
+- `models/model.onnx` (если задан `--export-onnx`)
+- `models/feature_order.json`
+- `models/train_metrics.json`
+
+Важно:
+- значения в колонке label должны совпадать с `--classes`;
+- если нужен фиксированный порядок признаков, передайте `--feature-columns col1,col2,...`;
+- порядок классов затем должен совпадать с `.env` (`CLASSES=...`) для корректного инференса.
+
 ### 1) Установка
 
 ```bash
@@ -155,12 +185,57 @@ curl -X POST http://localhost:8000/v1/classify \
   }'
 ```
 
-### 5) Offline режим
+### 5) Обучение модели (train)
+
+Поддерживается обучение на одном или нескольких размеченных CSV (CICFlowMeter).
+
+Минимальный пример (один CSV):
+
+```bash
+PYTHONPATH=src python3 -m pav_detector.train.train_model \
+  --train-csv path/to/train.csv \
+  --label-column Label \
+  --classes LEGIT,VPN,PROXY \
+  --epochs 30 \
+  --export-onnx
+```
+
+Обучение на нескольких CSV сразу:
+
+```bash
+PYTHONPATH=src python3 -m pav_detector.train.train_model \
+  --train-csv data/train_part1.csv data/train_part2.csv data/train_part3.csv \
+  --label-column Label \
+  --classes LEGIT,VPN,PROXY \
+  --epochs 40 \
+  --batch-size 512 \
+  --export-onnx
+```
+
+Что сохраняется в `models/`:
+- `scaler.pkl`
+- `model.pt` (TorchScript)
+- `model_state_dict.pt`
+- `model.onnx` (если передан `--export-onnx`)
+- `feature_order.json`
+- `train_metrics.json`
+
+После обучения:
+- приоритетно используйте `model.onnx` для инференса;
+- скопируйте порядок признаков из `feature_order.json` в `.env` (переменная `FEATURE_ORDER`), чтобы train/inference совпадали.
+
+CLI-команда после `pip install -e .`:
+
+```bash
+pav-train --help
+```
+
+### 6) Offline режим
 
 Из уже готового CSV:
 
 ```bash
-PYTHONPATH=src python -m pav_detector.offline.run_offline \
+PYTHONPATH=src python3 -m pav_detector.offline.run_offline \
   --csv path/to/flows.csv \
   --sensor-name offline-lab \
   --output-json data/offline_results.json
@@ -169,12 +244,12 @@ PYTHONPATH=src python -m pav_detector.offline.run_offline \
 Из PCAP через CICFlowMeter:
 
 ```bash
-PYTHONPATH=src python -m pav_detector.offline.run_offline \
+PYTHONPATH=src python3 -m pav_detector.offline.run_offline \
   --pcap path/to/capture.pcapng \
   --generated-csv data/generated_flows.csv
 ```
 
-### 6) UI оператора
+### 7) UI оператора
 
 ```bash
 PYTHONPATH=src streamlit run src/pav_detector/ui/streamlit_app.py
