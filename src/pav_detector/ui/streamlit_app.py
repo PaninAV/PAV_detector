@@ -19,53 +19,53 @@ def render_results_view(
     key_prefix: str = "results",
 ) -> None:
     if not settings.enable_db:
-        st.error("Database is disabled. Set ENABLE_DB=true in .env")
+        st.error("База данных отключена. Установите ENABLE_DB=true в .env")
         return
 
     storage = PostgresStorage(settings.postgres_dsn)
 
     filter_container = st.sidebar if use_sidebar_filters else st.container()
     with filter_container:
-        st.header("Filters")
+        st.header("Фильтры")
         event_type = st.selectbox(
-            "Event type",
-            ["ALL", "VPN", "PROXY"],
+            "Тип события",
+            ["Все", "VPN", "PROXY"],
             key=f"{key_prefix}_event_type",
         )
         sensor_name = st.text_input(
-            "Sensor name (optional)",
+            "Выбор датасета",
             value="",
             key=f"{key_prefix}_sensor_name",
         )
         limit = st.slider(
-            "Row limit",
+            "Лимит строк",
             min_value=10,
             max_value=2000,
             value=500,
             step=10,
             key=f"{key_prefix}_limit",
         )
-        st.button("Refresh", key=f"{key_prefix}_refresh")
+        st.button("Обновить", key=f"{key_prefix}_refresh")
 
-    event_type_filter = None if event_type == "ALL" else event_type
+    event_type_filter = None if event_type == "Все" else event_type
     sensor_filter = sensor_name.strip() or None
     df = load_events(storage, event_type_filter, sensor_filter, limit)
 
-    st.subheader("Event Summary")
+    st.subheader("Сводка событий")
     if df.empty:
-        st.info("No events found.")
+        st.info("События не найдены.")
         return
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total events", int(len(df)))
-    col2.metric("Avg confidence", float(df["confidence"].mean()))
-    col3.metric("Max confidence", float(df["confidence"].max()))
+    col1.metric("Всего событий", int(len(df)))
+    col2.metric("Средняя уверенность", float(df["confidence"].mean()))
+    col3.metric("Максимальная уверенность", float(df["confidence"].max()))
 
-    st.subheader("Distribution by event type")
+    st.subheader("Распределение по типу события")
     dist = df["event_type"].value_counts().rename_axis("event_type").reset_index(name="count")
     st.bar_chart(dist.set_index("event_type"))
 
-    st.subheader("Events table")
+    st.subheader("Таблица событий")
     shown_cols = [
         "id",
         "detected_at",
