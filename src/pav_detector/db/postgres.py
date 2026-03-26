@@ -123,6 +123,20 @@ class PostgresStorage:
                 rows = cur.fetchall()
         return rows
 
+    def list_sensor_names(self, *, limit: int = 1000) -> Iterable[str]:
+        query = """
+            SELECT sensor_name
+            FROM detection_events
+            GROUP BY sensor_name
+            ORDER BY sensor_name ASC
+            LIMIT %s
+        """
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (limit,))
+                rows = cur.fetchall()
+        return [str(row[0]) for row in rows if row and row[0]]
+
 
 def _as_int(value: Any) -> Optional[int]:
     if value is None or value == "":

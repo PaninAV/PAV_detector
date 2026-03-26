@@ -39,22 +39,29 @@ def _run_train_section() -> None:
     st.caption("Загрузите обучающий CSV и нажмите кнопку запуска обучения.")
 
     uploaded_train_csv = st.file_uploader(
-        "Train CSV",
+        "Файл датасета для обучения (CSV)",
         type=["csv"],
         key="train_csv_uploader",
     )
 
     col1, col2, col3 = st.columns(3)
-    epochs = col1.number_input("Epochs", min_value=1, max_value=10000, value=40, step=1)
-    batch_size = col2.number_input("Batch size", min_value=1, max_value=100000, value=512, step=1)
-    lr = col3.number_input("Learning rate", min_value=0.000001, max_value=1.0, value=0.001, step=0.0005, format="%.6f")
+    epochs = col1.number_input("Количество эпох", min_value=1, max_value=10000, value=40, step=1)
+    batch_size = col2.number_input("Размер батча", min_value=1, max_value=100000, value=512, step=1)
+    lr = col3.number_input(
+        "Скорость обучения",
+        min_value=0.000001,
+        max_value=1.0,
+        value=0.001,
+        step=0.0005,
+        format="%.6f",
+    )
 
-    classes_raw = st.text_input("Classes (comma-separated)", value="LEGIT,VPN,PROXY")
-    export_onnx = st.checkbox("Export ONNX", value=True)
+    classes_raw = st.text_input("Классы (через запятую)", value="LEGIT,VPN,PROXY")
+    export_onnx = st.checkbox("Экспортировать ONNX", value=True)
 
     if st.button("Запустить обучение", type="primary"):
         if uploaded_train_csv is None:
-            st.error("Сначала выберите train CSV.")
+            st.error("Сначала выберите CSV для обучения.")
             return
         try:
             df = _uploaded_csv_to_dataframe(uploaded_train_csv)
@@ -85,6 +92,7 @@ def _run_train_section() -> None:
             artifacts = train(args)
             save_train_artifacts(args, artifacts)
             st.success("Обучение завершено. Артефакты сохранены в папке models/.")
+            st.caption("Метрики обучения:")
             st.json(artifacts.metrics)
         except Exception as exc:
             st.exception(exc)
@@ -92,14 +100,18 @@ def _run_train_section() -> None:
 
 def _run_offline_section() -> None:
     st.subheader("2) Оффлайн проверка CSV")
-    st.caption("Запускает классификацию по загруженному CSV и сохраняет suspicious события в БД.")
+    st.caption("Запускает классификацию по загруженному CSV и сохраняет подозрительные события в БД.")
 
     uploaded_offline_csv = st.file_uploader(
-        "Offline CSV",
+        "Файл для оффлайн проверки (CSV)",
         type=["csv"],
         key="offline_csv_uploader",
     )
-    sensor_name = st.text_input("Sensor name", value="workbench-offline", key="offline_sensor_name")
+    sensor_name = st.text_input(
+        "Имя датасета/сенсора",
+        value="workbench-offline",
+        key="offline_sensor_name",
+    )
 
     if st.button("Запустить оффлайн проверку"):
         if uploaded_offline_csv is None:
@@ -156,13 +168,23 @@ def _run_online_section() -> None:
     st.caption("Загружает CSV и отправляет flow-строки в /v1/classify. API должен быть запущен заранее.")
 
     uploaded_online_csv = st.file_uploader(
-        "Online CSV",
+        "Файл для онлайн отправки (CSV)",
         type=["csv"],
         key="online_csv_uploader",
     )
-    api_url = st.text_input("API URL", value="http://127.0.0.1:8000/v1/classify")
-    sensor_name = st.text_input("Sensor name", value="workbench-online", key="online_sensor_name")
-    max_rows = st.number_input("Max rows to send", min_value=1, max_value=1000000, value=500, step=1)
+    api_url = st.text_input("URL API", value="http://127.0.0.1:8000/v1/classify")
+    sensor_name = st.text_input(
+        "Имя датасета/сенсора",
+        value="workbench-online",
+        key="online_sensor_name",
+    )
+    max_rows = st.number_input(
+        "Максимум строк для отправки",
+        min_value=1,
+        max_value=1000000,
+        value=500,
+        step=1,
+    )
 
     if st.button("Запустить онлайн отправку в API"):
         if uploaded_online_csv is None:
@@ -198,10 +220,11 @@ def _run_online_section() -> None:
                 progress.progress(min(idx / total, 1.0))
 
             st.success(f"Отправлено flow: {sent}, алертов: {alerts}")
+            st.caption("Предпросмотр ответов API:")
             st.dataframe(pd.DataFrame(preview), use_container_width=True)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="ignore")
-            st.error(f"HTTP error from API: {exc.code}")
+            st.error(f"Ошибка HTTP от API: {exc.code}")
             st.code(body)
         except Exception as exc:
             st.exception(exc)

@@ -32,9 +32,10 @@ def render_results_view(
             ["Все", "VPN", "PROXY"],
             key=f"{key_prefix}_event_type",
         )
-        sensor_name = st.text_input(
+        sensor_options = ["Все датасеты"] + list(storage.list_sensor_names())
+        selected_sensor = st.selectbox(
             "Выбор датасета",
-            value="",
+            sensor_options,
             key=f"{key_prefix}_sensor_name",
         )
         limit = st.slider(
@@ -48,7 +49,7 @@ def render_results_view(
         st.button("Обновить", key=f"{key_prefix}_refresh")
 
     event_type_filter = None if event_type == "Все" else event_type
-    sensor_filter = sensor_name.strip() or None
+    sensor_filter = None if selected_sensor == "Все датасеты" else selected_sensor
     df = load_events(storage, event_type_filter, sensor_filter, limit)
 
     st.subheader("Сводка событий")
