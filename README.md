@@ -241,6 +241,31 @@ PYTHONPATH=src python3 -m pav_detector.offline.run_offline \
 PYTHONPATH=src streamlit run src/pav_detector/ui/streamlit_app.py
 ```
 
+### 8) Единый интерфейс Workbench (3 кнопки)
+
+Если хотите запускать всё из одного окна (обучение / оффлайн / онлайн), используйте:
+
+```bash
+PYTHONPATH=src streamlit run src/pav_detector/ui/workbench_app.py
+```
+
+или после `pip install -e .`:
+
+```bash
+pav-workbench
+```
+
+Также добавлен удобный файл запуска:
+
+```bash
+PYTHONPATH=src python run_workbench.py
+```
+
+В Workbench:
+- вкладка **Обучение модели**: выбор train CSV и запуск обучения;
+- вкладка **Оффлайн проверка**: выбор CSV и запуск классификации с записью алертов в БД;
+- вкладка **Онлайн проверка**: выбор CSV и отправка flow-строк в запущенный API (`/v1/classify`).
+
 ## Важные замечания
 
 - Модель и scaler в репозиторий не включены: положите артефакты в `models/`.
