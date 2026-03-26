@@ -17,6 +17,7 @@ from pav_detector.utils.logging_json import configure_logging
 from pav_detector.config import Settings
 from pav_detector.offline.run_offline import _row_to_flow
 from pav_detector.core.service import DetectionService
+from pav_detector.ui.streamlit_app import render_results_view
 
 
 def _normalize_value(value: Any) -> Any:
@@ -209,7 +210,7 @@ def _run_online_section() -> None:
 def main() -> None:
     st.set_page_config(page_title="PAV Detector Workbench", layout="wide")
     st.title("PAV Detector - Workbench")
-    st.caption("Интерфейс запуска обучения, оффлайн и онлайн проверки из одного окна.")
+    st.caption("Интерфейс запуска обучения, оффлайн/онлайн проверки и просмотра результатов из одного окна.")
 
     with st.expander("Перед запуском"):
         st.markdown(
@@ -218,8 +219,8 @@ def main() -> None:
             "- Для записи алертов в БД убедитесь, что `ENABLE_DB=true` в `.env`."
         )
 
-    tab_train, tab_offline, tab_online = st.tabs(
-        ["Обучение модели", "Оффлайн проверка", "Онлайн проверка"]
+    tab_train, tab_offline, tab_online, tab_results = st.tabs(
+        ["Обучение модели", "Оффлайн проверка", "Онлайн проверка", "Просмотр результатов"]
     )
 
     with tab_train:
@@ -228,6 +229,10 @@ def main() -> None:
         _run_offline_section()
     with tab_online:
         _run_online_section()
+    with tab_results:
+        st.subheader("4) Просмотр результатов")
+        settings = Settings.from_env()
+        render_results_view(settings, use_sidebar_filters=False, key_prefix="workbench_results")
 
 
 if __name__ == "__main__":

@@ -12,23 +12,40 @@ def load_events(storage: PostgresStorage, event_type: str | None, sensor_name: s
     return pd.DataFrame(rows)
 
 
-def main() -> None:
-    settings = Settings.from_env()
-    st.set_page_config(page_title="PAV Detector UI", layout="wide")
-    st.title("VPN / Proxy Detector - Operator UI")
-
+def render_results_view(
+    settings: Settings,
+    *,
+    use_sidebar_filters: bool = True,
+    key_prefix: str = "results",
+) -> None:
     if not settings.enable_db:
         st.error("Database is disabled. Set ENABLE_DB=true in .env")
         return
 
     storage = PostgresStorage(settings.postgres_dsn)
 
-    with st.sidebar:
+    filter_container = st.sidebar if use_sidebar_filters else st.container()
+    with filter_container:
         st.header("Filters")
-        event_type = st.selectbox("Event type", ["ALL", "VPN", "PROXY"])
-        sensor_name = st.text_input("Sensor name (optional)", value="")
-        limit = st.slider("Row limit", min_value=10, max_value=2000, value=500, step=10)
-        st.button("Refresh")
+        event_type = st.selectbox(
+            "Event type",
+            ["ALL", "VPN", "PROXY"],
+            key=f"{key_prefix}_event_type",
+        )
+        sensor_name = st.text_input(
+            "Sensor name (optional)",
+            value="",
+            key=f"{key_prefix}_sensor_name",
+        )
+        limit = st.slider(
+            "Row limit",
+            min_value=10,
+            max_value=2000,
+            value=500,
+            step=10,
+            key=f"{key_prefix}_limit",
+        )
+        st.button("Refresh", key=f"{key_prefix}_refresh")
 
     event_type_filter = None if event_type == "ALL" else event_type
     sensor_filter = sensor_name.strip() or None
@@ -62,6 +79,13 @@ def main() -> None:
         "protocol",
     ]
     st.dataframe(df[shown_cols], use_container_width=True)
+
+
+def main() -> None:
+    settings = Settings.from_env()
+    st.set_page_config(page_title="PAV Detector UI", layout="wide")
+    st.title("VPN / Proxy Detector - Operator UI")
+    render_results_view(settings, use_sidebar_filters=True, key_prefix="operator")
 
 
 if __name__ == "__main__":
