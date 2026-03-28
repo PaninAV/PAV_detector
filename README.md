@@ -267,6 +267,46 @@ PYTHONPATH=src python run_workbench.py
 - вкладка **Онлайн проверка**: выбор CSV и отправка flow-строк в запущенный API (`/v1/classify`);
 - вкладка **Просмотр результатов**: прежняя веб-морда мониторинга событий (фильтры, метрики, распределение, таблица).
 
+### 9) Демо-страница алертов (черновик UX)
+
+Отдельная страница для проектирования логики инцидентов:
+
+```bash
+PYTHONPATH=src streamlit run src/pav_detector/ui/alert_demo_app.py
+```
+
+или после `pip install -e .`:
+
+```bash
+pav-alert-demo
+```
+
+На странице:
+- лента последних алертов из БД с уровнем критичности;
+- карточки инцидентов с IP/портами и confidence;
+- раскрытие `raw_flow`;
+- кнопки действий (как UX-черновик, без записи в БД).
+
+### 10) Windows: запуск без консоли и установщик
+
+Добавлены скрипты в папке `windows/`:
+
+- `windows/install_windows.bat` — установка зависимостей + подготовка `.venv` + попытка init DB.
+- `windows/start_workbench.bat` — запуск Workbench через `.venv`.
+- `windows/start_workbench.vbs` — запуск Workbench **без консольного окна** (удобно делать ярлык).
+
+Типовой сценарий:
+
+```bat
+windows\install_windows.bat
+```
+
+потом двойной клик по:
+
+```text
+windows\start_workbench.vbs
+```
+
 ### 9) Запуск на Windows без консоли (ярлык) + установщик
 
 Добавлены скрипты в папке `windows/`:
