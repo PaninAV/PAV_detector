@@ -81,7 +81,11 @@ def main() -> None:
     results: List[Dict[str, Any]] = []
     for _, row in df.iterrows():
         flow = _row_to_flow(row)
-        detection = service.classify_flow(flow=flow, sensor_name=args.sensor_name)
+        detection = service.classify_flow(
+            flow=flow,
+            sensor_name=args.sensor_name,
+            source_mode="offline",
+        )
         results.append(
             {
                 "predicted_class": detection.predicted_class,

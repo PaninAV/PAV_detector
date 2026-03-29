@@ -3,6 +3,7 @@ from __future__ import annotations
 from argparse import Namespace
 import json
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -127,7 +128,11 @@ def _run_offline_section() -> None:
             alerts = 0
             for _, row in df.iterrows():
                 flow = _row_to_flow(row)
-                detection = service.classify_flow(flow=flow, sensor_name=sensor_name)
+                detection = service.classify_flow(
+                    flow=flow,
+                    sensor_name=sensor_name,
+                    source_mode="offline",
+                )
                 if detection.should_alert:
                     alerts += 1
                 results.append(
@@ -200,14 +205,20 @@ def _run_online_section() -> None:
             progress = st.progress(0)
             total = max(len(df), 1)
 
+            alert_placeholder = st.empty()
             for idx, (_, row) in enumerate(df.iterrows(), start=1):
                 flow = {str(key): _normalize_value(value) for key, value in row.items()}
-                payload = {"sensor_name": sensor_name, "flow": flow}
+                payload = {"sensor_name": sensor_name, "source_mode": "online", "flow": flow}
                 result = _post_flow(api_url, payload)
 
                 sent += 1
                 if result.get("should_alert"):
                     alerts += 1
+                    src_ip = flow.get("Src IP") or flow.get("src_ip") or "неизвестный IP"
+                    message = f"С {src_ip} обнаружена угроза ({result.get('predicted_class')})."
+                    alert_placeholder.warning(f"⚠ {message}")
+                    if hasattr(st, "toast"):
+                        st.toast(message, icon="🚨")
                 if len(preview) < 200:
                     preview.append(
                         {
@@ -219,6 +230,7 @@ def _run_online_section() -> None:
                     )
                 progress.progress(min(idx / total, 1.0))
 
+            alert_placeholder.empty()
             st.success(f"Отправлено flow: {sent}, алертов: {alerts}")
             st.caption("Предпросмотр ответов API:")
             st.dataframe(pd.DataFrame(preview), use_container_width=True)
@@ -248,6 +260,41 @@ def main() -> None:
         st.subheader("4) Просмотр результатов")
         settings = Settings.from_env()
         render_results_view(settings, use_sidebar_filters=False, key_prefix="workbench_results")
+
+    st.markdown("---")
+    st.subheader("Панель алертов (онлайн)")
+    settings = Settings.from_env()
+    if settings.enable_db:
+        from pav_detector.db.postgres import PostgresStorage
+
+        try:
+            storage = PostgresStorage(settings.postgres_dsn)
+            online_alerts = list(storage.list_alerts(source_mode="online", limit=50))
+            if not online_alerts:
+                st.info("Онлайн-алерты пока не найдены.")
+            else:
+                st.caption("Последние события, зафиксированные во время онлайн проверки.")
+                alerts_df = pd.DataFrame(online_alerts)
+                shown_cols = [
+                    "alert_id",
+                    "alert_created_at",
+                    "alert_type",
+                    "status",
+                    "sensor_name",
+                    "src_ip",
+                    "dst_ip",
+                    "confidence",
+                ]
+                available_cols = [col for col in shown_cols if col in alerts_df.columns]
+                st.dataframe(alerts_df[available_cols], use_container_width=True)
+        except Exception as exc:
+            st.warning(
+                "Не удалось загрузить панель онлайн-алертов. "
+                "Выполните инициализацию схемы БД (pav-init-db) и повторите."
+            )
+            st.caption(str(exc))
+    else:
+        st.info("База данных отключена, панель алертов недоступна.")
 
 
 if __name__ == "__main__":

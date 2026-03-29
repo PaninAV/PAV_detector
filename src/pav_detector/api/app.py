@@ -22,11 +22,13 @@ app = FastAPI(title=settings.app_name)
 class FlowEnvelope(BaseModel):
     flow: Dict[str, Any]
     sensor_name: Optional[str] = None
+    source_mode: str = "online"
 
 
 class BatchFlowEnvelope(BaseModel):
     flows: List[Dict[str, Any]] = Field(default_factory=list)
     sensor_name: Optional[str] = None
+    source_mode: str = "online"
 
 
 @app.on_event("startup")
@@ -64,7 +66,11 @@ def health() -> Dict[str, Any]:
 @app.post("/v1/classify")
 def classify(payload: FlowEnvelope) -> Dict[str, Any]:
     detector = _get_service()
-    result = detector.classify_flow(payload.flow, sensor_name=payload.sensor_name)
+    result = detector.classify_flow(
+        payload.flow,
+        sensor_name=payload.sensor_name,
+        source_mode=payload.source_mode,
+    )
     return {
         "predicted_class": result.predicted_class,
         "confidence": result.confidence,
@@ -72,6 +78,8 @@ def classify(payload: FlowEnvelope) -> Dict[str, Any]:
         "should_alert": result.should_alert,
         "reason": result.reason,
         "sensor_name": result.sensor_name,
+        "source_mode": result.source_mode,
+        "event_id": result.event_id,
         "detected_at": result.detected_at.isoformat(),
     }
 
@@ -81,7 +89,11 @@ def classify_batch(payload: BatchFlowEnvelope) -> Dict[str, Any]:
     detector = _get_service()
     items = []
     for flow in payload.flows:
-        result = detector.classify_flow(flow, sensor_name=payload.sensor_name)
+        result = detector.classify_flow(
+            flow,
+            sensor_name=payload.sensor_name,
+            source_mode=payload.source_mode,
+        )
         items.append(
             {
                 "predicted_class": result.predicted_class,
@@ -90,6 +102,8 @@ def classify_batch(payload: BatchFlowEnvelope) -> Dict[str, Any]:
                 "should_alert": result.should_alert,
                 "reason": result.reason,
                 "sensor_name": result.sensor_name,
+                "source_mode": result.source_mode,
+                "event_id": result.event_id,
                 "detected_at": result.detected_at.isoformat(),
             }
         )

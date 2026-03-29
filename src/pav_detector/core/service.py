@@ -30,7 +30,12 @@ class DetectionService:
             self.storage = PostgresStorage(settings.postgres_dsn)
             self.storage.init_schema()
 
-    def classify_flow(self, flow: Dict[str, Any], sensor_name: Optional[str] = None) -> DetectionResult:
+    def classify_flow(
+        self,
+        flow: Dict[str, Any],
+        sensor_name: Optional[str] = None,
+        source_mode: str = "unknown",
+    ) -> DetectionResult:
         df = pd.DataFrame([flow])
         features_df = prepare_feature_frame(df, self.settings.feature_order)
         features = features_df.to_numpy(dtype=np.float32)
@@ -48,13 +53,17 @@ class DetectionService:
             should_alert=should_alert,
             flow=flow,
             sensor_name=sensor_name or self.settings.sensor_name,
+            source_mode=source_mode,
             reason=reason,
         )
         if should_alert and self.storage is not None:
-            self.storage.save_event(
+            event_id = self.storage.save_event(
                 sensor_name=result.sensor_name,
+                source_mode=source_mode,
                 event_type=predicted_class,
                 confidence=confidence,
                 flow=flow,
+                create_alert=True,
             )
+            result.event_id = event_id
         return result

@@ -13,6 +13,8 @@ class DetectionResult:
     should_alert: bool
     flow: Dict[str, Any]
     sensor_name: str
+    source_mode: str = "unknown"
+    event_id: Optional[int] = None
     detected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     reason: str = ""
 
