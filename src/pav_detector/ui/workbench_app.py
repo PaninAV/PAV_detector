@@ -3,11 +3,10 @@ from __future__ import annotations
 from argparse import Namespace
 import json
 import tempfile
-import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -19,14 +18,6 @@ from pav_detector.config import Settings
 from pav_detector.offline.run_offline import _row_to_flow
 from pav_detector.core.service import DetectionService
 from pav_detector.ui.streamlit_app import render_results_view
-
-
-def _normalize_value(value: Any) -> Any:
-    if pd.isna(value):
-        return None
-    if hasattr(value, "item"):
-        return value.item()
-    return value
 
 
 def _uploaded_csv_to_dataframe(uploaded_file) -> pd.DataFrame:
@@ -155,40 +146,11 @@ def _run_offline_section() -> None:
             st.dataframe(pd.DataFrame(results).head(200), use_container_width=True)
         except Exception as exc:
             st.exception(exc)
-
-
-def _post_flow(api_url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    request = urllib.request.Request(
-        api_url,
-        data=json.dumps(payload, ensure_ascii=True).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def _parse_flow_lines(raw_lines: str) -> list[Dict[str, Any]]:
-    flows: list[Dict[str, Any]] = []
-    for idx, line in enumerate(raw_lines.splitlines(), start=1):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        try:
-            item = json.loads(stripped)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Строка {idx}: некорректный JSON: {exc}") from exc
-        if not isinstance(item, dict):
-            raise ValueError(f"Строка {idx}: ожидается JSON-объект flow.")
-        flows.append(item)
-    return flows
-
-
 def _run_online_section() -> None:
-    st.subheader("3) Онлайн проверка (эмуляция потока в API)")
+    st.subheader("3) Онлайн проверка")
     st.caption(
-        "Отправляет строки flow в /v1/classify. "
-        "Вставьте по одной JSON-строке на каждый flow. API должен быть запущен заранее."
+        "Проверка подключения к онлайн API. "
+        "Сами flow-данные должны поступать во внешний API-эндпоинт из отдельного источника."
     )
 
     api_url = st.text_input("URL API", value="http://127.0.0.1:8000/v1/classify")
@@ -197,65 +159,21 @@ def _run_online_section() -> None:
         value="workbench-online",
         key="online_sensor_name",
     )
-    raw_flow_lines = st.text_area(
-        "Строки (JSON, по одной на строку)",
-        value=(
-            '{"Src IP":"10.0.0.1","Dst IP":"8.8.8.8","Protocol":"6",'
-            '"Flow Duration":1200,"Tot Fwd Pkts":5,"Tot Bwd Pkts":3}\n'
-            '{"Src IP":"10.0.0.2","Dst IP":"1.1.1.1","Protocol":"17",'
-            '"Flow Duration":3500,"Tot Fwd Pkts":12,"Tot Bwd Pkts":11}'
-        ),
-        height=180,
-    )
 
-    if st.button("Запустить онлайн отправку в API"):
-        if not raw_flow_lines.strip():
-            st.error("Вставьте хотя бы одну JSON-строку flow.")
-            return
+    if st.button("Проверить подключение к API"):
         try:
-            flows = _parse_flow_lines(raw_flow_lines)
-            if not flows:
-                st.error("Не удалось извлечь flow-строки. Проверьте формат JSON.")
-                return
-
-            sent = 0
-            alerts = 0
-            preview = []
-            progress = st.progress(0)
-            total = max(len(flows), 1)
-
-            alert_placeholder = st.empty()
-            for idx, flow in enumerate(flows, start=1):
-                payload = {"sensor_name": sensor_name, "source_mode": "online", "flow": flow}
-                result = _post_flow(api_url, payload)
-
-                sent += 1
-                if result.get("should_alert"):
-                    alerts += 1
-                    src_ip = flow.get("Src IP") or flow.get("src_ip") or "неизвестный IP"
-                    message = f"С {src_ip} обнаружена угроза ({result.get('predicted_class')})."
-                    alert_placeholder.warning(f"⚠ {message}")
-                    if hasattr(st, "toast"):
-                        st.toast(message, icon="🚨")
-                if len(preview) < 200:
-                    preview.append(
-                        {
-                            "predicted_class": result.get("predicted_class"),
-                            "confidence": result.get("confidence"),
-                            "should_alert": result.get("should_alert"),
-                            "reason": result.get("reason"),
-                        }
-                    )
-                progress.progress(min(idx / total, 1.0))
-
-            alert_placeholder.empty()
-            st.success(f"Отправлено flow: {sent}, алертов: {alerts}")
-            st.caption("Предпросмотр ответов API:")
-            st.dataframe(pd.DataFrame(preview), use_container_width=True)
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            st.error(f"Ошибка HTTP от API: {exc.code}")
+            health_url = api_url.rsplit("/", 1)[0] + "/health"
+            request = urllib.request.Request(health_url, method="GET")
+            with urllib.request.urlopen(request, timeout=10) as response:
+                body = response.read().decode("utf-8")
+            st.success("Подключение к API успешно.")
             st.code(body)
+            st.info(
+                f"Источник данных для online должен отправлять flow в {api_url} "
+                f"с sensor_name={sensor_name}."
+            )
+        except urllib.error.URLError as exc:
+            st.error(f"Не удалось подключиться к API: {exc}")
         except Exception as exc:
             st.exception(exc)
 
