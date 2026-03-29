@@ -32,8 +32,6 @@ CREATE INDEX IF NOT EXISTS idx_detection_events_event_type
     ON detection_events (event_type);
 CREATE INDEX IF NOT EXISTS idx_detection_events_sensor_name
     ON detection_events (sensor_name);
-CREATE INDEX IF NOT EXISTS idx_detection_events_source_mode
-    ON detection_events (source_mode);
 
 CREATE TABLE IF NOT EXISTS detection_alerts (
     id BIGSERIAL PRIMARY KEY,
@@ -52,6 +50,9 @@ CREATE INDEX IF NOT EXISTS idx_detection_alerts_alert_type
 
 ALTER TABLE detection_events
     ADD COLUMN IF NOT EXISTS source_mode TEXT NOT NULL DEFAULT 'unknown';
+
+CREATE INDEX IF NOT EXISTS idx_detection_events_source_mode
+    ON detection_events (source_mode);
 """
 
 
