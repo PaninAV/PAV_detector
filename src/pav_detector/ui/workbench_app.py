@@ -168,46 +168,64 @@ def _post_flow(api_url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
+def _parse_flow_lines(raw_lines: str) -> list[Dict[str, Any]]:
+    flows: list[Dict[str, Any]] = []
+    for idx, line in enumerate(raw_lines.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            item = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Строка {idx}: некорректный JSON: {exc}") from exc
+        if not isinstance(item, dict):
+            raise ValueError(f"Строка {idx}: ожидается JSON-объект flow.")
+        flows.append(item)
+    return flows
+
+
 def _run_online_section() -> None:
     st.subheader("3) Онлайн проверка (эмуляция потока в API)")
-    st.caption("Загружает CSV и отправляет flow-строки в /v1/classify. API должен быть запущен заранее.")
-
-    uploaded_online_csv = st.file_uploader(
-        "Файл для онлайн отправки (CSV)",
-        type=["csv"],
-        key="online_csv_uploader",
+    st.caption(
+        "Отправляет строки flow в /v1/classify. "
+        "Вставьте по одной JSON-строке на каждый flow. API должен быть запущен заранее."
     )
+
     api_url = st.text_input("URL API", value="http://127.0.0.1:8000/v1/classify")
     sensor_name = st.text_input(
         "Имя датасета/сенсора",
         value="workbench-online",
         key="online_sensor_name",
     )
-    max_rows = st.number_input(
-        "Максимум строк для отправки",
-        min_value=1,
-        max_value=1000000,
-        value=500,
-        step=1,
+    raw_flow_lines = st.text_area(
+        "Строки (JSON, по одной на строку)",
+        value=(
+            '{"Src IP":"10.0.0.1","Dst IP":"8.8.8.8","Protocol":"6",'
+            '"Flow Duration":1200,"Tot Fwd Pkts":5,"Tot Bwd Pkts":3}\n'
+            '{"Src IP":"10.0.0.2","Dst IP":"1.1.1.1","Protocol":"17",'
+            '"Flow Duration":3500,"Tot Fwd Pkts":12,"Tot Bwd Pkts":11}'
+        ),
+        height=180,
     )
 
     if st.button("Запустить онлайн отправку в API"):
-        if uploaded_online_csv is None:
-            st.error("Сначала выберите CSV для онлайн отправки.")
+        if not raw_flow_lines.strip():
+            st.error("Вставьте хотя бы одну JSON-строку flow.")
             return
         try:
-            df = _uploaded_csv_to_dataframe(uploaded_online_csv)
-            df = df.head(int(max_rows))
+            flows = _parse_flow_lines(raw_flow_lines)
+            if not flows:
+                st.error("Не удалось извлечь flow-строки. Проверьте формат JSON.")
+                return
 
             sent = 0
             alerts = 0
             preview = []
             progress = st.progress(0)
-            total = max(len(df), 1)
+            total = max(len(flows), 1)
 
             alert_placeholder = st.empty()
-            for idx, (_, row) in enumerate(df.iterrows(), start=1):
-                flow = {str(key): _normalize_value(value) for key, value in row.items()}
+            for idx, flow in enumerate(flows, start=1):
                 payload = {"sensor_name": sensor_name, "source_mode": "online", "flow": flow}
                 result = _post_flow(api_url, payload)
 
