@@ -215,19 +215,73 @@ def _accuracy(logits: torch.Tensor, targets: torch.Tensor) -> float:
     return float((predicted == targets).float().mean().item())
 
 
-def _macro_f1_from_numpy(y_true: np.ndarray, y_pred: np.ndarray, num_classes: int) -> float:
+def _confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, num_classes: int) -> np.ndarray:
+    cm = np.zeros((num_classes, num_classes), dtype=np.int64)
+    for true_idx, pred_idx in zip(y_true, y_pred):
+        cm[int(true_idx), int(pred_idx)] += 1
+    return cm
+
+
+def _classification_metrics_from_cm(cm: np.ndarray, classes: Sequence[str]) -> Dict[str, object]:
+    num_classes = cm.shape[0]
+    total = int(cm.sum())
+    accuracy = float(np.trace(cm) / total) if total > 0 else 0.0
+
+    precisions: List[float] = []
+    recalls: List[float] = []
     f1_values: List[float] = []
+    supports = cm.sum(axis=1).astype(np.int64)
+
+    per_class: List[Dict[str, object]] = []
     for cls_idx in range(num_classes):
-        tp = np.sum((y_true == cls_idx) & (y_pred == cls_idx))
-        fp = np.sum((y_true != cls_idx) & (y_pred == cls_idx))
-        fn = np.sum((y_true == cls_idx) & (y_pred != cls_idx))
+        tp = int(cm[cls_idx, cls_idx])
+        fp = int(cm[:, cls_idx].sum() - tp)
+        fn = int(cm[cls_idx, :].sum() - tp)
+        support = int(supports[cls_idx])
+
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        if precision + recall == 0.0:
-            f1_values.append(0.0)
-        else:
-            f1_values.append(2 * precision * recall / (precision + recall))
-    return float(np.mean(f1_values))
+        f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+
+        precisions.append(float(precision))
+        recalls.append(float(recall))
+        f1_values.append(float(f1))
+
+        per_class.append(
+            {
+                "class_name": classes[cls_idx] if cls_idx < len(classes) else f"class_{cls_idx}",
+                "precision": float(precision),
+                "recall": float(recall),
+                "f1": float(f1),
+                "support": support,
+            }
+        )
+
+    macro_precision = float(np.mean(precisions)) if precisions else 0.0
+    macro_recall = float(np.mean(recalls)) if recalls else 0.0
+    macro_f1 = float(np.mean(f1_values)) if f1_values else 0.0
+
+    support_sum = int(supports.sum())
+    if support_sum > 0:
+        weighted_precision = float(np.average(np.asarray(precisions), weights=supports))
+        weighted_recall = float(np.average(np.asarray(recalls), weights=supports))
+        weighted_f1 = float(np.average(np.asarray(f1_values), weights=supports))
+    else:
+        weighted_precision = 0.0
+        weighted_recall = 0.0
+        weighted_f1 = 0.0
+
+    return {
+        "accuracy": accuracy,
+        "precision_macro": macro_precision,
+        "recall_macro": macro_recall,
+        "f1_macro": macro_f1,
+        "precision_weighted": weighted_precision,
+        "recall_weighted": weighted_recall,
+        "f1_weighted": weighted_f1,
+        "confusion_matrix": cm.tolist(),
+        "per_class": per_class,
+    }
 
 
 def train(args: argparse.Namespace) -> TrainingArtifacts:
@@ -337,18 +391,26 @@ def train(args: argparse.Namespace) -> TrainingArtifacts:
     with torch.no_grad():
         val_logits = model(x_val_t)
         val_pred = torch.argmax(val_logits, dim=1).cpu().numpy()
-    macro_f1 = _macro_f1_from_numpy(y_val, val_pred, num_classes=len(classes))
+    cm = _confusion_matrix(y_val, val_pred, num_classes=len(classes))
+    cls_metrics = _classification_metrics_from_cm(cm, classes=classes)
 
     metrics = {
         "train_loss": float(last_train_loss),
         "train_acc": float(last_train_acc),
         "val_loss": float(last_val_loss),
         "val_acc": float(last_val_acc),
-        "val_macro_f1": float(macro_f1),
+        "val_precision_macro": float(cls_metrics["precision_macro"]),
+        "val_recall_macro": float(cls_metrics["recall_macro"]),
+        "val_f1_macro": float(cls_metrics["f1_macro"]),
+        "val_precision_weighted": float(cls_metrics["precision_weighted"]),
+        "val_recall_weighted": float(cls_metrics["recall_weighted"]),
+        "val_f1_weighted": float(cls_metrics["f1_weighted"]),
         "n_train": int(len(x_train)),
         "n_val": int(len(x_val)),
         "n_features": int(x_train.shape[1]),
         "n_classes": int(len(classes)),
+        "confusion_matrix": cls_metrics["confusion_matrix"],
+        "per_class_metrics": cls_metrics["per_class"],
     }
     return TrainingArtifacts(
         feature_order=feature_order,
